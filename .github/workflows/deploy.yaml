@@ -1,44 +1,9 @@
-# This workflow will build a docker container, publish it to Google Container
-# Registry, and deploy it to GKE when there is a push to the "capstonebranch-main"
-# branch.
-#
-# To configure this workflow:
-#
-# 1. Enable the following Google Cloud APIs:
-#
-#    - Artifact Registry (artifactregistry.googleapis.com)
-#    - Google Kubernetes Engine (container.googleapis.com)
-#    - IAM Credentials API (iamcredentials.googleapis.com)
-#
-#    You can learn more about enabling APIs at
-#    https://support.google.com/googleapi/answer/6158841.
-#
-# 2. Ensure that your repository contains the necessary configuration for your
-#    Google Kubernetes Engine cluster, including deployment.yml,
-#    kustomization.yml, service.yml, etc.
-#
-# 3. Create and configure a Workload Identity Provider for GitHub:
-#    https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation.
-#
-#    Depending on how you authenticate, you will need to grant an IAM principal
-#    permissions on Google Cloud:
-#
-#    - Artifact Registry Administrator (roles/artifactregistry.admin)
-#    - Kubernetes Engine Developer (roles/container.developer)
-#
-#    You can learn more about setting IAM permissions at
-#    https://cloud.google.com/iam/docs/manage-access-other-resources
-#
-# 5. Change the values in the "env" block to match your values.
-
-# .github/workflows/deploy.yaml
-
 name: Build, Push, and Deploy to Cloud Run
 
 on:
   push:
     branches:
-      - main # Only run on pushes to the 'main' branch
+      - capstonebranch-main # Only run on pushes to the 'main' branch
 
 env:
   PROJECT_ID: ramiroh # Your GCP Project ID
@@ -56,13 +21,10 @@ jobs:
       id-token: 'write' # This is required for Workload Identity Federation
 
     steps:
-    
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ----------------------------------------------------
       # 1. Authenticate to Google Cloud using WIF
-      # ----------------------------------------------------
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
         uses: 'google-github-actions/auth@v2'
@@ -71,33 +33,20 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.SA_EMAIL }}
 
-      # ----------------------------------------------------
       # 2. Set up Docker and Configure gcloud for Artifact Registry
-      # ----------------------------------------------------
       - name: 'Set up Docker with gcloud'
         run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
 
-      # ----------------------------------------------------
       # 3. Build and Push Docker Image
-      # ----------------------------------------------------
       - name: Build and Push Docker Image
         id: build-image
         run: |
-          # The image will be tagged with the GitHub commit SHA for uniqueness
           IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}"
-          
-          # Build and tag the image
           docker build -t ${IMAGE_TAG} .
-          
-          # Push the image to Artifact Registry
           docker push ${IMAGE_TAG}
-          
-          # Export the image URL for the next step
           echo "IMAGE_URL=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-      
-      # ----------------------------------------------------
+
       # 4. Deploy to Cloud Run
-      # ----------------------------------------------------
       - name: Deploy to Cloud Run
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
@@ -105,11 +54,8 @@ jobs:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ steps.build-image.outputs.IMAGE_URL }}
-          # The following is important: it sets the service to run as the SA
           service_account_email: ${{ env.SA_EMAIL }}
-          # Recommended for simplicity in CI/CD environments
           allow_unauthenticated: true
 
       - name: Show Deployment URL
         run: echo "Cloud Run URL: ${{ steps.deploy.outputs.url }}"
-

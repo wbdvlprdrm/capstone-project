@@ -54,8 +54,10 @@ jobs:
           service: ${{ env.SERVICE_NAME }}
           region: ${{ env.GCP_REGION }}
           image: ${{ steps.build-image.outputs.IMAGE_URL }}
-          service_account_email: ${{ env.SA_EMAIL }}
-          allow_unauthenticated: true
+          # FIX: Replaced service_account_email and allow_unauthenticated with flags
+          flags: |
+            --service-account=${{ env.SA_EMAIL }}
+            --allow-unauthenticated
 
       - name: Show Deployment URL
         run: echo "Cloud Run URL ${{ steps.deploy.outputs.url }}"
